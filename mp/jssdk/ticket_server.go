@@ -26,8 +26,8 @@ var _ TicketServer = (*DefaultTicketServer)(nil)
 //  2. 因为 DefaultTicketServer 同时也是一个简单的中控服务器, 而不是仅仅实现 TicketServer 接口,
 //     所以整个系统只能存在一个 DefaultTicketServer 实例!
 type DefaultTicketServer struct {
-	coreClient *core.Client
-
+	coreClient                core.IClient
+	ticketApi                 string
 	refreshTicketRequestChan  chan string              // chan currentTicket
 	refreshTicketResponseChan chan refreshTicketResult // chan {ticket, err}
 
@@ -35,12 +35,13 @@ type DefaultTicketServer struct {
 }
 
 // NewDefaultTicketServer 创建一个新的 DefaultTicketServer.
-func NewDefaultTicketServer(clt *core.Client) (srv *DefaultTicketServer) {
+func NewDefaultTicketServer(clt core.IClient) (srv *DefaultTicketServer) {
 	if clt == nil {
 		panic("nil core.Client")
 	}
 	srv = &DefaultTicketServer{
 		coreClient:                clt,
+		ticketApi:                 "https://api.weixin.qq.com/cgi-bin/ticket/getticket?type=jsapi&access_token=",
 		refreshTicketRequestChan:  make(chan string),
 		refreshTicketResponseChan: make(chan refreshTicketResult),
 	}
@@ -116,6 +117,10 @@ type jsapiTicket struct {
 	ExpiresIn int64  `json:"expires_in"`
 }
 
+func (srv *DefaultTicketServer) SetTicketApi(url string) {
+	srv.ticketApi = url
+}
+
 // updateTicket 从微信服务器获取新的 jsapi_ticket 并存入缓存, 同时返回该 jsapi_ticket.
 func (srv *DefaultTicketServer) updateTicket(currentTicket string) (ticket *jsapiTicket, cached bool, err error) {
 	if currentTicket != "" {
@@ -124,7 +129,7 @@ func (srv *DefaultTicketServer) updateTicket(currentTicket string) (ticket *jsap
 		}
 	}
 
-	var incompleteURL = "https://api.weixin.qq.com/cgi-bin/ticket/getticket?type=jsapi&access_token="
+	var incompleteURL = srv.ticketApi
 	var result struct {
 		core.Error
 		jsapiTicket

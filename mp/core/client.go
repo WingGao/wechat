@@ -17,6 +17,9 @@ type Client struct {
 	AccessTokenServer
 	HttpClient *http.Client
 }
+type IClient interface {
+	GetJSON(incompleteURL string, response interface{}) (err error)
+}
 
 // NewClient 创建一个新的 Client.
 //  如果 clt == nil 则默认用 util.DefaultHttpClient
