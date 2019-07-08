@@ -36,8 +36,10 @@ type DefaultAccessTokenServer struct {
 
 	refreshTokenRequestChan  chan string             // chan currentToken
 	refreshTokenResponseChan chan refreshTokenResult // chan {token, err}
+	stopChan                 chan bool
 
-	tokenCache unsafe.Pointer // *accessToken
+	tokenCache  unsafe.Pointer // *accessToken
+	TokenUrlFmt string
 }
 
 // NewDefaultAccessTokenServer 创建一个新的 DefaultAccessTokenServer, 如果 httpClient == nil 则默认使用 util.DefaultHttpClient.
@@ -52,6 +54,8 @@ func NewDefaultAccessTokenServer(appId, appSecret string, httpClient *http.Clien
 		httpClient:               httpClient,
 		refreshTokenRequestChan:  make(chan string),
 		refreshTokenResponseChan: make(chan refreshTokenResult),
+		stopChan:                 make(chan bool),
+		TokenUrlFmt:              "https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=%s&secret=%s",
 	}
 
 	go srv.tokenUpdateDaemon(time.Hour * 24 * time.Duration(100+rand.Int63n(200)))
@@ -77,7 +81,9 @@ func (srv *DefaultAccessTokenServer) RefreshToken(currentToken string) (token st
 	rslt := <-srv.refreshTokenResponseChan
 	return rslt.token, rslt.err
 }
-
+func (srv *DefaultAccessTokenServer) Destroy() {
+	srv.stopChan <- true
+}
 func (srv *DefaultAccessTokenServer) tokenUpdateDaemon(initTickDuration time.Duration) {
 	tickDuration := initTickDuration
 
@@ -85,6 +91,10 @@ NEW_TICK_DURATION:
 	ticker := time.NewTicker(tickDuration)
 	for {
 		select {
+		case <-srv.stopChan:
+			// 停止
+			ticker.Stop()
+			break
 		case currentToken := <-srv.refreshTokenRequestChan:
 			accessToken, cached, err := srv.updateToken(currentToken)
 			if err != nil {
@@ -97,7 +107,6 @@ NEW_TICK_DURATION:
 				ticker.Stop()
 				goto NEW_TICK_DURATION
 			}
-
 		case <-ticker.C:
 			accessToken, _, err := srv.updateToken("")
 			if err != nil {
@@ -133,8 +142,7 @@ func (srv *DefaultAccessTokenServer) updateToken(currentToken string) (token *ac
 		}
 	}
 
-	url := "https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=" + srv.appId +
-		"&secret=" + srv.appSecret
+	url := fmt.Sprintf(srv.TokenUrlFmt, srv.appId, srv.appSecret)
 	api.DebugPrintGetRequest(url)
 	httpResp, err := srv.httpClient.Get(url)
 	if err != nil {
