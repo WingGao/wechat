@@ -5,12 +5,25 @@ import (
 )
 
 type UserInfo struct {
-	UserId string `json:"userid"`
-	Name   string `json:"name"`
-	Avatar string `json:"avatar"`
-	Gender string `json:"gender"`
-	Mobile string `json:"mobile"`
-	Email  string `json:"email"`
+	UserId     string `json:"userid"`
+	Name       string `json:"name"`
+	Avatar     string `json:"avatar"`
+	Gender     string `json:"gender"`
+	Mobile     string `json:"mobile"`
+	Email      string `json:"email"`
+	Position   string `json:"position"` //职位
+	Department []int  `json:"department"`
+	Extattr    struct {
+		Attrs []UserInfoAttr `json:"attrs"`
+	} `json:"extattr"`
+}
+
+type UserInfoAttr struct {
+	Type int    `json:"type"`
+	Name string `json:"name"`
+	Text struct {
+		Value string `json:"value"`
+	} `json:"text"`
 }
 
 // 读取成员
